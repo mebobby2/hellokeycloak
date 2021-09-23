@@ -69,6 +69,13 @@ When a resource server receives an access token, it is able to verify the token 
 * Downloading the public signing keys for the OpenID Provider from the JWKS URL endpoint. These are typically cached/stored at the Resource Server.
 * Verifying the signature of the token using the public signing keys from the OpenID Provider.
 
+### How should you deal with logout?
+The simplest approach is simply to rely on relatively short application sessions and token expiration. As Keycloak will keep the user logged in, it is possible to effectively use short application sessions without requiring users to frequently re-authenticate.
+
+In other cases, or where logout has to be instant, you should leverage OIDC Back-Channel logout.
+
+Do not use the OpenID Connect Front-Channel Logout as it renders a hidden iframe for each application. This suffers from browsers blocking third-party content, which means that when the OpenID Provider opens the logout endpoint in an iframe there is no access to any application-level cookies, leaving the application unable to access the current authentication session.
+
 ## Source code
 https://github.com/PacktPublishing/Keycloak-Identity-and-Access-Management-for-Modern-Applications
 
