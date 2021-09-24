@@ -76,10 +76,16 @@ In other cases, or where logout has to be instant, you should leverage OIDC Back
 
 Do not use the OpenID Connect Front-Channel Logout as it renders a hidden iframe for each application. This suffers from browsers blocking third-party content, which means that when the OpenID Provider opens the logout endpoint in an iframe there is no access to any application-level cookies, leaving the application unable to access the current authentication session.
 
+### Acess Token Limiting Strategies
+* Audience: Allows listing the resource providers that should accept an access token.
+* Roles: Through controlling what roles a client has access to, it is possible to control
+what roles an application can access on behalf of the user.
+* Scope: In Keycloak, scopes are created through client scopes, and an application can only have access to a specific list of scopes. Furthermore, when applications require consent, the user must also grant access to the scope.
+
 ## Source code
 https://github.com/PacktPublishing/Keycloak-Identity-and-Access-Management-for-Modern-Applications
 
 ## Upto
-Page 80
+Page 98
 
-Invoking the UserInfo endpoint
+This means that the roles included in tokens are the intersection between the roles a user has and the roles a client is allowed to use, as shown in the following diagram
