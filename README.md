@@ -1,7 +1,13 @@
 # Keycloak
-
+## Run
+* Postgres.app
+* docker run -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin -e DB_ADDR=docker.for.mac.localhost -e DB_USER=bobbylei -e DB_VENDOR=postgres -e DB_PORT=5432 -e DB_DATABASE=keycloak -p 8080:8080 quay.io/keycloak/keycloak
+  * Docker for Mac
+* http://localhost:8080/auth/
 ## Tips
 * By delegating authentication of the user to Keycloak, the application does not have to know how to authenticate the user. This is especially relevant when the authentication mechanisms change. For example, two-factor authentication can be enabled without having to make changes to the application. This also means the application does not have access to the user's credentials.
+* Client scopes are entities in Keycloak, which are configured at the realm level and they can be linked to clients. The client scopes are referenced by their name when a request is sent to the Keycloak authorization endpoint with a corresponding value of the scope parameter. A scope is the smallest entity that describes a single permission.
+* A role is a collection of multiple scopes. It can be assigned to a user or included in another role.
 
 ## Notes
 ### JSON Web Signature
@@ -86,6 +92,6 @@ what roles an application can access on behalf of the user.
 https://github.com/PacktPublishing/Keycloak-Identity-and-Access-Management-for-Modern-Applications
 
 ## Upto
-Page 98
+Page 104
 
-This means that the roles included in tokens are the intersection between the roles a user has and the roles a client is allowed to use, as shown in the following diagram
+Validating access tokens
