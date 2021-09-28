@@ -1,13 +1,14 @@
 # Keycloak
 ## Run
 * Postgres.app
-* docker run -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin -e DB_ADDR=docker.for.mac.localhost -e DB_USER=bobbylei -e DB_VENDOR=postgres -e DB_PORT=5432 -e DB_DATABASE=keycloak -p 8080:8080 quay.io/keycloak/keycloak
+* docker run -e KEYCLOAK_USER=admin -e KEYCLOAK_PASSWORD=admin -e DB_ADDR=docker.for.mac.localhost -e DB_USER=bobbylei -e DB_VENDOR=postgres -e DB_PORT=5432 -e DB_DATABASE=keycloak -p 8180:8080 quay.io/keycloak/keycloak
   * Docker for Mac
 * http://localhost:8080/auth/
 ## Tips
 * By delegating authentication of the user to Keycloak, the application does not have to know how to authenticate the user. This is especially relevant when the authentication mechanisms change. For example, two-factor authentication can be enabled without having to make changes to the application. This also means the application does not have access to the user's credentials.
 * Client scopes are entities in Keycloak, which are configured at the realm level and they can be linked to clients. The client scopes are referenced by their name when a request is sent to the Keycloak authorization endpoint with a corresponding value of the scope parameter. A scope is the smallest entity that describes a single permission.
 * A role is a collection of multiple scopes. It can be assigned to a user or included in another role.
+* Clients in Keycloak have two out of the box protocols; openid-connect & saml
 
 ## Notes
 ### JSON Web Signature
@@ -88,10 +89,86 @@ Do not use the OpenID Connect Front-Channel Logout as it renders a hidden iframe
 what roles an application can access on behalf of the user.
 * Scope: In Keycloak, scopes are created through client scopes, and an application can only have access to a specific list of scopes. Furthermore, when applications require consent, the user must also grant access to the scope.
 
+### Verifying Access Tokens
+Two options; using the token introspection endpoint or validating it directly inside your application (only if it's a JWT).
+
+If you take the latter approach, you need to:
+1. Retrieve the public signing keys from the JWKS endpoint provided by Keycloak.
+2. Verify the signature of the access token.
+3. Verify that the access token has not expired.
+4. Verify the issuer, audience, and type of the token.
+5. Verify any other claims that your application cares about.
+
+### PKCE
+The PKCE extension is an extension to OAuth 2.0 that binds the authorization code to the application that sent the authorization request. This prevents abuse of the authorization code if it is intercepted.
+
+### Securing different types of applications
+
+#### Web Apps
+Use Authorization Code flow with the Proof Key for Code Exchange (PKCE) extension.
+
+When porting existing applications to use Keycloak, it may be tempting to keep the login pages in the existing application, then exchanging the username and password for tokens, by using the Resource Owner Password Credential grant to obtain tokens. This would be similar to how you would integrate your application with an LDAP server.
+
+However, this is simply something that you should not be tempted to do. Collecting user credentials in an application effectively means that if a single application is compromised, an attacker would likely have access to all applications that the user can access. This includes applications not secured by Keycloak, as users often reuse passwords. You
+also do not have the ability to introduce stronger authentication, such as two-factor authentication. Finally, you do not get all the benefits of using Keycloak with this approach, such as single sign-on (SSO) and social login.
+
+As an alternative to keeping the login pages within your existing applications, you may be tempted to embed the Keycloak login page as an iframe within the application. This is also something that you should avoid doing. With the login page embedded into the application, it can be affected by vulnerabilities in an application, potentially allowing an attacker access to the username and password.
+
+You should get used to the fact that an application should redirect the user to a trusted identity provider for authentication, especially in SSO scenarios.
+
+##### Server-Side Web Apps
+When securing a server-side web application with Keycloak, you should register a confidential client with Keycloak. As you are using a confidential client, a leaked authorization code can't be leveraged by an attacker.
+
+You must also configure applicable redirect URIs for the client as otherwise, you are creating what is called an open redirect.
+
+The application leverages the Authorization Code flow to obtain an ID token from Keycloak, which it uses to establish an authenticated HTTP session.
+
+##### SPA with Dedicated API (hosted on same domain)
+A SPA that has a dedicated REST API on the same domain should be secured with Keycloak in the same way as a server-side web application. As the application has
+a dedicated REST API, it should leverage the Authorization Code flow with a confidential client for the highest level of security, and use an HTTP session to secure the API requests from the client side to the dedicated REST API.
+
+##### Securing a SPA with an intermediary API
+The most secure way to invoke external REST APIs from a SPA is through an intermediary API hosted on the same domain as the SPA. By doing this, you are able to leverage a confidential client and tokens are not directly accessible in the browser, which reduces the risk of tokens, especially the refresh token, being leaked.
+
+This type of SPA is often referred to as the backend for frontends patterns. Not only does it have increased security, but it also makes your SPA more portable and may make it easier to develop. This is due to the application not having to directly deal with external APIs, but rather a dedicated REST API built specifically to service the frontend SPA.
+
+As the SPA is making the requests through an intermediary REST API on the same domain, you don't need to deal with CORS in this case.
+
+##### Securing SPA with an external API
+The simplest way to secure a SPA with Keycloak is by doing the Authorization Code flow directly from the SPA itself with a public client registered in Keycloak. This is a somewhat less secure approach as the tokens, including the refresh token, are exposed directly to the browser. For very critical applications, such as financial applications, this is not an approach you want to use. However, there are a number of techniques that can be leveraged to provide a good level of security for this approach.
+
+The REST API is required to include CORS headers in the response. Otherwise, the browser would block the SPA from reading the response.
+
+#### Native & Mobile Applications
+Use the Authorization Code flow with the PKCE extension instead.
+
+Effectively, this means that your native or mobile application must use a browser to authenticate with Keycloak. In this regard, there are three options available depending on the type of application:
+* embedded web view
+  * not recommended as it is open to vulnerabilities where the credentials may be intercepted.
+  * it also does not enable SSO as there are no shared cookies between multiple applications.
+* external user agent (default browser)
+* an in-app browser tab without the application
+
+In all the options, the Keycloak login pages are opened in a browser to authenticate the user. After the user is authenticated, the authorization code is returned to the application, which can then obtain tokens from Keycloak.
+
+To return the authorization code to the application, there are four different approaches using special redirect URIs defined by OAuth 2.0: Claimed HTTPS scheme, Custom URI scheme, Loopback interface, and A special redirect URI.
+
+When available, the claimed HTTPS scheme is the recommended approach, as it is more secure. In cases when neither a claimed HTTPS scheme nor a custom scheme can be used, for example, in a CLI, the loopback interface option is a good approach.
+
+#### APIs and Services
+When an application wants to invoke a REST API protected by Keycloak, it first obtains an access token from Keycloak, then includes the access token in the authorization header in requests it sends to the REST API.
+
+With microservices, using tokens to secure the services is especially useful as it enables propagating the authentication context when a service invokes another service, making it easy to provide full end-to-end authentication of the user.
+
+The application can first obtain an access token using the Client Credential flow (instead of the standard flow - authorization code flow)
+
+#### Summary
+You learned the difference between an internal and an external application, where external applications require asking the user for consent to grant access, while internal applications do not. You then learned how different web application architectures are secured with Keycloak, and why it is more secure to have a backend for a SPA that obtains tokens from Keycloak, instead of directly obtaining tokens in the SPA itself.
+
 ## Source code
 https://github.com/PacktPublishing/Keycloak-Identity-and-Access-Management-for-Modern-Applications
 
 ## Upto
-Page 104
+Page 143
 
-Validating access tokens
+Using Spring Boot
