@@ -169,6 +169,6 @@ You learned the difference between an internal and an external application, wher
 https://github.com/PacktPublishing/Keycloak-Identity-and-Access-Management-for-Modern-Applications
 
 ## Upto
-Page 143
+Page 169
 
-Using Spring Boot
+Understanding authorization
